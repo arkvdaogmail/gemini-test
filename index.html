@@ -1,58 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>VeChain Notarization</title>
-    <script src="https://unpkg.com/@vechain/connex@2.1.0/dist/connex.min.js"></script>
+    <title>DApp Kit Test</title>
+    <script type="module" src="/main.js"></script>
 </head>
 <body>
-    <h1>VeChain Document Notarization</h1>
-    <p>Please use a VeChain wallet like VeWorld.</p>
-    <hr>
-    <input type="file" id="fileInput">
-    <button id="notarizeBtn">Notarize with My Wallet</button>
-    <div id="result" style="margin-top:20px; font-family:monospace; word-break: break-all;"></div>
-
-    <script>
-        document.getElementById('notarizeBtn').addEventListener('click', async () => {
-            const fileInput = document.getElementById('fileInput');
-            const resultDiv = document.getElementById('result');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                resultDiv.innerText = 'Error: Please select a file first.';
-                return;
-            }
-
-            if (!window.connex) {
-                resultDiv.innerText = 'Error: VeChain wallet not found.';
-                return;
-            }
-
-            resultDiv.innerText = 'Working... Please check your wallet.';
-            
-            try {
-                const fileBuffer = await file.arrayBuffer();
-                const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
-                const hash = '0x' + Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-                const signingService = connex.vendor.sign('tx');
-                signingService.comment('Notarize document hash');
-                
-                const { txid } = await signingService.request([{
-                    to: null,
-                    value: '0x0',
-                    data: hash
-                }]);
-
-                const explorerUrl = `https://explore-testnet.vechain.org/transactions/${txid}`;
-                resultDiv.innerHTML = \`✅ Success! TXID: <a href="\${explorerUrl}" target="_blank">\${txid}</a>\`;
-
-            } catch (error) {
-                console.error(error);
-                resultDiv.innerText = \`Error: \${error.message}\`;
-            }
-        });
-    </script>
+    <h1>V-DAO DApp Kit Test</h1>
+    <vdk-button></vdk-button>
+    <div id="address"></div>
 </body>
 </html>
