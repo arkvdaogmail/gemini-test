@@ -4,19 +4,20 @@
     <title>V-DAO Notary (DApp Kit)</title>
     <script src="https://unpkg.com/@vechain/dapp-kit-ui@latest/dist/index.umd.js"></script>
     <style>
-        body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; }
-        .container { max-width: 600px; margin: auto; }
-        button { background: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px;}
+        :root { --vdk-color-primary: #007bff; --vdk-color-secondary: #6c757d; --vdk-color-success: #28a745; --vdk-color-danger: #dc3545; --vdk-color-warning: #ffc107; --vdk-color-info: #17a2b8; --vdk-color-light: #f8f9fa; --vdk-color-dark: #343a40; --vdk-font-family: system-ui, sans-serif; --vdk-border-radius: 0.5rem; --vdk-modal-bg: #212529; --vdk-modal-color: var(--vdk-color-light); --vdk-bg-color: #1a1a1a; --vdk-text-color: var(--vdk-color-light); --vdk-secondary-text-color: #a0a0a0; --vdk-button-bg-color: var(--vdk-color-primary); --vdk-button-hover-bg-color: #0056b3; --vdk-button-text-color: white; --vdk-card-bg-color: #2c2c2c; }
+        body { font-family: var(--vdk-font-family); text-align: center; padding: 20px; background-color: var(--vdk-bg-color); color: var(--vdk-text-color); }
+        .container { max-width: 600px; margin: auto; background-color: var(--vdk-card-bg-color); padding: 30px; border-radius: 10px; }
+        button#notarizeBtn { background: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 20px;}
         #result { margin-top: 20px; font-family: monospace; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>V-DAO Notary Demo</h1>
-        <p>This demo uses the official VeChain DApp Kit.</p>
+        <p>Connect your wallet, then notarize a file.</p>
         
         <vdk-button></vdk-button>
-        <hr>
+        <hr style="margin: 20px 0; border-color: #444;">
 
         <h3>Step 1: Choose a File</h3>
         <input type="file" id="fileInput">
@@ -28,27 +29,29 @@
     </div>
 
     <script>
-        // --- THIS IS THE MOST IMPORTANT STEP ---
-        // You must get a Project ID from WalletConnect
+        // --- IMPORTANT ---
+        // You must get a Project ID from WalletConnect for this to work
         const walletConnectProjectId = 'YOUR_WALLET_CONNECT_PROJECT_ID';
 
         // Configure the DApp Kit
-        const dappKit = DAppKitUI.configure({
+        DAppKitUI.configure({
             node: 'https://testnet.vechain.org/',
             network: 'test',
             walletConnectOptions: {
                 projectId: walletConnectProjectId,
-                metadata: {
-                    name: 'V-DAO Notary',
-                    description: 'A simple document notarization tool.',
-                    url: window.location.origin,
-                    icons: []
-                }
+                metadata: { name: 'V-DAO Notary', description: 'Notary App', url: window.location.origin, icons: [] }
             },
-            usePersistence: true
+            themeVariables: {
+                '--vdk-bg-color': '#1a1a1a',
+                '--vdk-text-color': '#ffffff',
+                '--vdk-secondary-text-color': '#a0a0a0',
+                '--vdk-card-bg-color': '#2c2c2c',
+                '--vdk-modal-bg': '#212529',
+                '--vdk-modal-color': '#ffffff'
+            }
         });
 
-        // --- Your Application Logic ---
+        // --- Application Logic ---
         document.getElementById('notarizeBtn').addEventListener('click', async () => {
             const fileInput = document.getElementById('fileInput');
             const resultDiv = document.getElementById('result');
@@ -59,7 +62,10 @@
                 return;
             }
 
-            if (!dappKit.wallet.state.address) {
+            // DApp Kit provides the wallet object after connection
+            const { wallet, vendor } = DAppKitUI;
+
+            if (!wallet.state.address) {
                 resultDiv.innerText = 'Error: Please connect your wallet first using the button above.';
                 return;
             }
@@ -67,24 +73,16 @@
             resultDiv.innerText = 'Working... Please check your wallet to approve.';
 
             try {
-                // 1. Create the hash
                 const fileBuffer = await file.arrayBuffer();
                 const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
                 const hash = '0x' + Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-                // 2. Ask the wallet to sign the transaction (using the modern DApp Kit way)
-                const { txid } = await dappKit.vendor.sign('tx', [{
-                    to: null,
-                    value: '0x0',
-                    data: hash
-                }]).request();
+                const { txid } = await vendor.sign('tx', [{ to: null, value: '0x0', data: hash }]).request();
 
-                // 3. Show success
                 const explorerUrl = `https://explore-testnet.vechain.org/transactions/${txid}`;
                 resultDiv.innerHTML = `✅ Success! TXID: <a href="${explorerUrl}" target="_blank">${txid}</a>`;
 
             } catch (error) {
-                console.error(error);
                 resultDiv.innerText = `Error: ${error.message}`;
             }
         });
