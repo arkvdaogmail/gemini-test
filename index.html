@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V-DAO Notary (Professional UI)</title>
+    <script src="https://unpkg.com/@vechain/connex@2.1.0/dist/connex.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root { --primary: #4e54c8; --secondary: #2dce89; --dark: #1e1e2d; --light: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: var(--light); padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 2.2rem; background: linear-gradient(to right, #4facfe, #00f2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .panel { background: rgba(30, 30, 45, 0.85); border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .panel-title { display: flex; align-items: center; gap: 12px; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .panel-title i { font-size: 1.8rem; color: var(--secondary); }
+        .panel-title h2 { font-size: 1.5rem; }
+        .upload-area { border: 2px dashed rgba(255, 255, 255, 0.2); border-radius: 10px; padding: 30px; text-align: center; margin-bottom: 20px; cursor: pointer; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 25px; border-radius: 10px; font-weight: 600; cursor: pointer; border: none; width: 100%; margin-top: 10px; background: linear-gradient(to right, #2dce89, #1ca064); color: white; }
+        .status { padding: 15px; border-radius: 10px; margin-top: 20px; font-weight: 500; word-break: break-all; }
+        .status.success { background: rgba(40, 167, 69, 0.2); border: 1px solid var(--secondary); color: var(--secondary); }
+        .status.error { background: rgba(220, 53, 69, 0.2); border: 1px solid #dc3545; color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-fingerprint"></i> V-DAO Notary</h1>
+        </header>
+        
+        <div class="panel">
+            <div class="panel-title">
+                <i class="fas fa-file-import"></i>
+                <h2>Notarize Your Document</h2>
+            </div>
+            
+            <div class="upload-area" id="dropZone">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <h3>Upload Document</h3>
+                <p>Drag & drop your file here or click to browse</p>
+                <input type="file" id="fileInput" hidden>
+            </div>
+            
+            <button class="btn" id="notarizeBtn">
+                <i class="fas fa-wallet"></i> Notarize with My Wallet
+            </button>
+            
+            <div class="status" id="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const notarizeBtn = document.getElementById('notarizeBtn');
+        const resultDiv = document.getElementById('result');
+
+        // Allow clicking the drop zone to open file dialog
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        notarizeBtn.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                resultDiv.innerText = 'Error: Please select a file first.';
+                resultDiv.className = 'status error';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            if (!window.connex) {
+                resultDiv.innerText = 'Error: VeChain wallet not found. Please install VeWorld.';
+                resultDiv.className = 'status error';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            resultDiv.innerText = 'Working... Please check your wallet to approve.';
+            resultDiv.className = 'status';
+            resultDiv.style.display = 'block';
+            
+            try {
+                // 1. Create hash
+                const fileBuffer = await file.arrayBuffer();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
+                const hash = '0x' + Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                // 2. Ask wallet to sign
+                const signingService = connex.vendor.sign('tx');
+                signingService.comment('V-DAO Notary: Document Hash');
+                
+                const { txid } = await signingService.request([{
+                    to: null,
+                    value: '0x0',
+                    data: hash
+                }]);
+
+                // 3. Show success
+                const explorerUrl = `https://explore-testnet.vechain.org/transactions/${txid}`;
+                resultDiv.innerHTML = `✅ Success! TXID: <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">${txid}</a>`;
+                resultDiv.className = 'status success';
+
+            } catch (error) {
+                resultDiv.innerText = `Error: ${error.message}`;
+                resultDiv.className = 'status error';
+            }
+        });
+    </script>
+</body>
+</html>
