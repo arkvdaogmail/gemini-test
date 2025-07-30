@@ -1,6 +1,6 @@
 import { DAppKitUI } from '@vechain/dapp-kit-ui';
 
-const walletConnectProjectId = 'YOUR_WALLET_CONNECT_PROJECT_ID';
+const walletConnectProjectId = '5c6a3589d71c0f5c26640cba7f9e44d3';
 
 const dappKit = DAppKitUI.configure({
     node: 'https://testnet.vechain.org/',
