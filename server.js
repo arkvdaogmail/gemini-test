@@ -68,6 +68,7 @@ app.post('/notarize', upload.single('document'), async (req, res) => {
             throw new Error('Transaction failed on the VeChain network.');
         }
 
+        
         res.json({
             success: true,
             vechainTx: txID,
