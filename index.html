@@ -18,6 +18,7 @@
         input, button { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
         input { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-primary); }
         button { border: none; color: white; background-color: var(--primary-color); cursor: pointer; font-weight: bold; }
+        #start-over-btn { background-color: var(--text-secondary); }
         button:disabled { background-color: #4b5563; cursor: not-allowed; }
         #signout-btn { position: absolute; top: 20px; right: 20px; width: auto; background: none; color: #f87171; font-size: 14px; padding: 5px; }
         #drop-zone { border: 2px dashed var(--border-color); padding: 30px; text-align: center; cursor: pointer; color: var(--text-secondary); }
@@ -40,10 +41,11 @@
         </section>
 
         <section id="results-section">
-             </section>
+             <div id="results-info"></div>
+             <button id="start-over-btn">Notarize Another File</button>
+        </section>
     </div>
 <script>
-// --- Configuration (No backend URL needed for this test) ---
 const CONFIG = {
     SUPABASE_URL: 'https://mfrefbmnxygeahaluhzr.supabase.co',
     SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mcmVmYm1ueHlnZWFoYWx1aHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI1NDIxOTUsImV4cCI6MjA2ODExODE5NX0.Ur3hl7rVEWk6U-ydNbKymFmXtxUlx6RTn0pU0EnP7u0'
@@ -53,25 +55,30 @@ const dom = {};
 let state = {};
 
 document.addEventListener('DOMContentLoaded', () => {
-    ['status', 'auth-section', 'email', 'password', 'login-btn', 'upload-section', 'drop-zone', 'fileInput', 'hash-preview', 'results-section', 'signout-btn'].forEach(id => dom[id] = document.getElementById(id));
+    const ids = ['status', 'auth-section', 'email', 'password', 'login-btn', 'upload-section', 'drop-zone', 'fileInput', 'hash-preview', 'results-section', 'results-info', 'start-over-btn', 'signout-btn'];
+    ids.forEach(id => dom[id] = document.getElementById(id));
     
     dom['login-btn'].onclick = handleAuth;
     dom['signout-btn'].onclick = signOut;
     dom['drop-zone'].onclick = () => dom.fileInput.click();
     dom.fileInput.onchange = (e) => handleFile(e.target.files[0]);
+    dom['start-over-btn'].onclick = () => show('upload'); // NEW: Button to go back to upload step
 
     checkAuth();
 });
 
 const setStatus = (msg, type) => { dom.status.textContent = msg; dom.status.className = `status ${type}`; };
-const show = (section) => ['auth', 'upload', 'results'].forEach(s => dom[`${s}-section`].style.display = (s === section) ? 'block' : 'none');
+const show = (section) => {
+    ['auth', 'upload', 'results'].forEach(s => dom[`${s}-section`].style.display = 'none');
+    dom[`${section}-section`].style.display = 'block';
+};
 
 async function checkAuth() {
     const { data: { session } } = await sb.auth.getSession();
     dom['signout-btn'].style.display = session ? 'block' : 'none';
     if (session) {
         show('upload');
-        setStatus(`Signed in as ${session.user.email}`, 'success');
+        setStatus(`Signed in. Please upload a file.`, 'success');
     } else {
         show('auth');
         setStatus('Please sign in.', 'info');
@@ -81,9 +88,7 @@ async function checkAuth() {
 async function handleAuth() {
     const email = dom.email.value, password = dom.password.value;
     let { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) { // If sign-in fails, try to sign up
-        ({ error } = await sb.auth.signUp({ email, password }));
-    }
+    if (error) ({ error } = await sb.auth.signUp({ email, password }));
     if (error) setStatus(error.message, 'error');
     else checkAuth();
 }
@@ -99,14 +104,12 @@ async function handleFile(file) {
     setStatus('Generating file hash...', 'info');
     try {
         const buffer = await file.arrayBuffer();
-        // CORRECTED ALGORITHM: SHA-256
         const digest = await crypto.subtle.digest('SHA-256', buffer);
         const hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
         
         dom['hash-preview'].innerHTML = `<strong>File Hash:</strong><br>${hash}`;
         setStatus('Hash generated! Simulating notarization...', 'info');
         
-        // Directly trigger the simulated notarization
         await simulateNotarization(hash);
 
     } catch (err) {
@@ -115,19 +118,15 @@ async function handleFile(file) {
 }
 
 async function simulateNotarization(hash) {
-    // This function fakes the backend process for UI testing.
-    // It waits 2.5 seconds, then shows a sample result.
-    
-    await new Promise(resolve => setTimeout(resolve, 2500)); // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 2500)); 
 
     const fakeResult = {
-        success: true,
-        vechainTx: '0x' + Array(64).join('a'), // Fake transaction ID
+        vechainTx: '0x' + Array(64).join('a'),
         explorerUrl: '#',
         documentHash: hash,
     };
 
-    dom['results-section'].innerHTML = `
+    dom['results-info'].innerHTML = `
         <div class="status success">
             <h3>✅ Proof Created (Simulation)!</h3>
             <p><strong>Transaction ID:</strong><br>
