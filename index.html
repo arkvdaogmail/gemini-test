@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StampID | Dark Mode Test</title>
-    <script src="https://js.stripe.com/v3/"></script>
+    <title>StampID | UI Flow Test</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* --- DARK THEME STYLES --- */
-        :root { --primary-color: #3b82f6; --primary-hover: #60a5fa; --danger-color: #f87171; --background-color: #111827; --surface-color: #1f2937; --text-primary: #f9fafb; --text-secondary: #9ca3af; --border-color: #4b5563; }
+        :root { --primary-color: #3b82f6; --background-color: #111827; --surface-color: #1f2937; --text-primary: #f9fafb; --text-secondary: #9ca3af; --border-color: #4b5563; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--background-color); color: var(--text-primary); display: flex; justify-content: center; padding: 20px; }
         .container { max-width: 500px; width: 100%; background: var(--surface-color); padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); position: relative; }
         h2 { text-align: center; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
@@ -21,106 +19,128 @@
         input { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-primary); }
         button { border: none; color: white; background-color: var(--primary-color); cursor: pointer; font-weight: bold; }
         button:disabled { background-color: #4b5563; cursor: not-allowed; }
-        button:hover:not(:disabled) { background-color: var(--primary-hover); }
-        #signout-btn { /* NEW */ position: absolute; top: 20px; right: 20px; width: auto; background: none; color: var(--danger-color); font-size: 14px; padding: 5px; font-weight: normal; border: none; }
+        #signout-btn { position: absolute; top: 20px; right: 20px; width: auto; background: none; color: #f87171; font-size: 14px; padding: 5px; }
         #drop-zone { border: 2px dashed var(--border-color); padding: 30px; text-align: center; cursor: pointer; color: var(--text-secondary); }
-        #payment-element { padding: 15px; border: 1px solid var(--border-color); border-radius: 5px; margin-bottom: 10px; }
-        #hash-info { padding: 10px; background-color: var(--background-color); border-radius: 4px; color: var(--text-secondary); font-family: monospace; word-break: break-all; }
-        #results-section a { color: var(--primary-hover); }
+        #hash-preview { padding: 10px; background-color: var(--background-color); border-radius: 4px; color: var(--text-secondary); font-family: monospace; word-break: break-all; margin-top: 10px;}
+        #results-section a { color: #60a5fa; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>StampID</h2>
-        <button id="signout-btn" style="display: none;">Sign Out</button> <div id="status" class="status info">Initializing...</div>
+        <button id="signout-btn" style="display: none;">Sign Out</button>
+        <div id="status" class="status info">Initializing...</div>
+
         <section id="auth-section">
             <input type="email" id="email" placeholder="Email"><input type="password" id="password" placeholder="Password"><button id="login-btn">Sign In / Sign Up</button>
         </section>
+
         <section id="upload-section">
-            <div id="drop-zone">Click or drop file here</div><input type="file" id="fileInput" style="display:none;"><div id="hash-info"></div>
+            <div id="drop-zone">Click or drop file here</div><input type="file" id="fileInput" style="display:none;"><div id="hash-preview"></div>
         </section>
-        <section id="payment-section">
-            <div id="payment-element"></div><button id="notarize-btn">Pay & Create Proof</button>
-        </section>
-        <section id="results-section"></section>
+
+        <section id="results-section">
+             </section>
     </div>
 <script>
+// --- Configuration (No backend URL needed for this test) ---
 const CONFIG = {
     SUPABASE_URL: 'https://mfrefbmnxygeahaluhzr.supabase.co',
-    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mcmVmYm1ueHlnZWFoYWx1aHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI1NDIxOTUsImV4cCI6MjA2ODExODE5NX0.Ur3hl7rVEWk6U-ydNbKymFmXtxUlx6RTn0pU0EnP7u0',
-    BACKEND_URL: "http://localhost:3000",
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mcmVmYm1ueHlnZWFoYWx1aHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI1NDIxOTUsImV4cCI6MjA2ODExODE5NX0.Ur3hl7rVEWk6U-ydNbKymFmXtxUlx6RTn0pU0EnP7u0'
 };
 const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const dom = {};
 let state = {};
-let stripe;
 
 document.addEventListener('DOMContentLoaded', () => {
-    ['status', 'auth-section', 'email', 'password', 'login-btn', 'upload-section', 'drop-zone', 'fileInput', 'hash-info', 'payment-section', 'payment-element', 'notarize-btn', 'results-section', 'signout-btn'].forEach(id => dom[id] = document.getElementById(id)); // NEW: added 'signout-btn'
-    checkAuth();
+    ['status', 'auth-section', 'email', 'password', 'login-btn', 'upload-section', 'drop-zone', 'fileInput', 'hash-preview', 'results-section', 'signout-btn'].forEach(id => dom[id] = document.getElementById(id));
+    
     dom['login-btn'].onclick = handleAuth;
-    dom['signout-btn'].onclick = signOut; // NEW
+    dom['signout-btn'].onclick = signOut;
     dom['drop-zone'].onclick = () => dom.fileInput.click();
     dom.fileInput.onchange = (e) => handleFile(e.target.files[0]);
-    dom['notarize-btn'].onclick = processNotarization;
+
+    checkAuth();
 });
+
 const setStatus = (msg, type) => { dom.status.textContent = msg; dom.status.className = `status ${type}`; };
-const show = (section) => ['auth', 'upload', 'payment', 'results'].forEach(s => dom[`${s}-section`].style.display = (s === section) ? 'block' : 'none');
+const show = (section) => ['auth', 'upload', 'results'].forEach(s => dom[`${s}-section`].style.display = (s === section) ? 'block' : 'none');
 
 async function checkAuth() {
     const { data: { session } } = await sb.auth.getSession();
-    dom['signout-btn'].style.display = session ? 'block' : 'none'; // NEW
-    if (session) { show('upload'); setStatus(`Signed in as ${session.user.email}`, 'success'); } 
-    else { show('auth'); setStatus('Please sign in.', 'info'); }
+    dom['signout-btn'].style.display = session ? 'block' : 'none';
+    if (session) {
+        show('upload');
+        setStatus(`Signed in as ${session.user.email}`, 'success');
+    } else {
+        show('auth');
+        setStatus('Please sign in.', 'info');
+    }
 }
+
 async function handleAuth() {
     const email = dom.email.value, password = dom.password.value;
     let { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) ({ error } = await sb.auth.signUp({ email, password }));
+    if (error) { // If sign-in fails, try to sign up
+        ({ error } = await sb.auth.signUp({ email, password }));
+    }
     if (error) setStatus(error.message, 'error');
     else checkAuth();
 }
-// NEW: Sign out function
+
 async function signOut() {
     await sb.auth.signOut();
-    setStatus('You have been signed out.', 'info');
     checkAuth();
 }
+
 async function handleFile(file) {
     if (!file) return;
     state.file = file;
-    setStatus('Generating hash...', 'info');
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest('SHA-266', buffer);
-    state.hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-    dom['hash-info'].innerHTML = `<strong>Hash:</strong> ${state.hash.substring(0,20)}...`;
-    show('payment');
-    initializeStripe();
-}
-async function initializeStripe() {
-    if (stripe) return; // Prevent re-initializing
-    const { stripePublicKey } = await (await fetch(`${CONFIG.BACKEND_URL}/config`)).json();
-    stripe = Stripe(stripePublicKey);
-    const elements = stripe.elements({ appearance: { theme: 'night', labels: 'floating' } });
-    state.cardElement = elements.create('card');
-    state.cardElement.mount(dom['payment-element']);
-}
-async function processNotarization() {
-    dom['notarize-btn'].disabled = true;
+    setStatus('Generating file hash...', 'info');
     try {
-        const { clientSecret } = await (await fetch(`${CONFIG.BACKEND_URL}/create-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ document_hash: state.hash }) })).json();
-        const { paymentIntent, error } = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: state.cardElement } });
-        if (error || paymentIntent.status !== 'succeeded') throw new Error(error ? error.message : 'Payment failed.');
-        setStatus('Payment successful! Notarizing...', 'success');
-        const formData = new FormData();
-        formData.append('document', state.file);
-        formData.append('document_hash', state.hash);
-        const notarizeRes = await (await fetch(`${CONFIG.BACKEND_URL}/notarize`, { method: 'POST', body: formData })).json();
-        if (!notarizeRes.success) throw new Error(notarizeRes.details);
-        dom['results-section'].innerHTML = `<strong>Success!</strong><p>TxID: <a href="${notarizeRes.explorerUrl}" target="_blank">${notarizeRes.vechainTx.substring(0,20)}...</a></p>`;
-        show('results');
-    } catch (err) { setStatus(err.message, 'error'); }
-    finally { dom['notarize-btn'].disabled = false; }
+        const buffer = await file.arrayBuffer();
+        // CORRECTED ALGORITHM: SHA-256
+        const digest = await crypto.subtle.digest('SHA-256', buffer);
+        const hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+        
+        dom['hash-preview'].innerHTML = `<strong>File Hash:</strong><br>${hash}`;
+        setStatus('Hash generated! Simulating notarization...', 'info');
+        
+        // Directly trigger the simulated notarization
+        await simulateNotarization(hash);
+
+    } catch (err) {
+        setStatus('Error hashing file: ' + err.message, 'error');
+    }
+}
+
+async function simulateNotarization(hash) {
+    // This function fakes the backend process for UI testing.
+    // It waits 2.5 seconds, then shows a sample result.
+    
+    await new Promise(resolve => setTimeout(resolve, 2500)); // Simulate network delay
+
+    const fakeResult = {
+        success: true,
+        vechainTx: '0x' + Array(64).join('a'), // Fake transaction ID
+        explorerUrl: '#',
+        documentHash: hash,
+    };
+
+    dom['results-section'].innerHTML = `
+        <div class="status success">
+            <h3>✅ Proof Created (Simulation)!</h3>
+            <p><strong>Transaction ID:</strong><br>
+                <a href="${fakeResult.explorerUrl}" target="_blank">${fakeResult.vechainTx}</a>
+            </p>
+            <p><strong>Document Hash:</strong><br>
+                <code style="font-size: 12px;">${fakeResult.documentHash}</code>
+            </p>
+        </div>
+    `;
+    
+    show('results');
+    setStatus('Process Complete!', 'success');
 }
 </script>
 </body>
