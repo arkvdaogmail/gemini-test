@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StampID | Simple Test</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>:root { --primary-color: #2563eb; --light-gray: #f4f7f9; } body { font-family: sans-serif; background-color: var(--light-gray); display: flex; justify-content: center; padding: 20px; } .container { max-width: 500px; width: 100%; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); } h2 { text-align: center; } section { display: none; margin-top: 15px; } .status { padding: 10px; border-radius: 5px; text-align: center; } .status.info { background-color: #e0f2fe; color: #0c54a8; } .status.success { background-color: #dcfce7; color: #166534; } .status.error { background-color: #fee2e2; color: #991b1b; } input, button { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 5px; box-sizing: border-box; } input { border: 1px solid #ccc; } button { border: none; color: white; background-color: var(--primary-color); cursor: pointer; } button:disabled { background-color: #9ca3af; } #drop-zone { border: 2px dashed #ccc; padding: 20px; text-align: center; cursor: pointer; } #payment-element { padding: 10px; border: 1px solid #ccc; }</style>
+</head>
+<body>
+    <div class="container">
+        <h2>StampID Test</h2>
+        <div id="status" class="status info">Initializing...</div>
+        <section id="auth-section">
+            <input type="email" id="email" placeholder="Email"><input type="password" id="password" placeholder="Password"><button id="login-btn">Sign In / Sign Up</button>
+        </section>
+        <section id="upload-section">
+            <div id="drop-zone">Click or drop file here</div><input type="file" id="fileInput" style="display:none;"><div id="hash-info"></div>
+        </section>
+        <section id="payment-section">
+            <div id="payment-element"></div><button id="notarize-btn">Pay & Create Proof</button>
+        </section>
+        <section id="results-section"></section>
+    </div>
+<script>
+const CONFIG = {
+    SUPABASE_URL: 'https://mfrefbmnxygeahaluhzr.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mcmVmYm1ueHlnZWFoYWx1aHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI1NDIxOTUsImV4cCI6MjA2ODExODE5NX0.Ur3hl7rVEWk6U-ydNbKymFmXtxUlx6RTn0pU0EnP7u0',
+    BACKEND_URL: "http://localhost:3000",
+};
+const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const dom = {};
+let state = {};
+document.addEventListener('DOMContentLoaded', () => {
+    ['status', 'auth-section', 'email', 'password', 'login-btn', 'upload-section', 'drop-zone', 'fileInput', 'hash-info', 'payment-section', 'payment-element', 'notarize-btn', 'results-section'].forEach(id => dom[id] = document.getElementById(id));
+    checkAuth();
+    dom['login-btn'].onclick = handleAuth;
+    dom['drop-zone'].onclick = () => dom.fileInput.click();
+    dom.fileInput.onchange = (e) => handleFile(e.target.files[0]);
+    dom['notarize-btn'].onclick = processNotarization;
+});
+const setStatus = (msg, type) => { dom.status.textContent = msg; dom.status.className = `status ${type}`; };
+const show = (section) => ['auth', 'upload', 'payment', 'results'].forEach(s => dom[`${s}-section`].style.display = (s === section) ? 'block' : 'none');
+async function checkAuth() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) { show('upload'); setStatus('Signed in. Please upload a file.', 'success'); } 
+    else { show('auth'); setStatus('Please sign in.', 'info'); }
+}
+async function handleAuth() {
+    const email = dom.email.value, password = dom.password.value;
+    let { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) ({ error } = await sb.auth.signUp({ email, password }));
+    if (error) setStatus(error.message, 'error');
+    else checkAuth();
+}
+async function handleFile(file) {
+    if (!file) return;
+    state.file = file;
+    setStatus('Generating hash...', 'info');
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    state.hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    dom['hash-info'].innerHTML = `<strong>Hash:</strong> ${state.hash.substring(0,20)}...`;
+    show('payment');
+    initializeStripe();
+}
+async function initializeStripe() {
+    const { stripePublicKey } = await (await fetch(`${CONFIG.BACKEND_URL}/config`)).json();
+    const stripe = Stripe(stripePublicKey);
+    state.cardElement = stripe.elements().create('card');
+    state.cardElement.mount(dom['payment-element']);
+}
+async function processNotarization() {
+    dom['notarize-btn'].disabled = true;
+    try {
+        const { clientSecret } = await (await fetch(`${CONFIG.BACKEND_URL}/create-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ document_hash: state.hash }) })).json();
+        const { paymentIntent, error } = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: state.cardElement } });
+        if (error || paymentIntent.status !== 'succeeded') throw new Error(error ? error.message : 'Payment failed.');
+        setStatus('Payment successful! Notarizing...', 'success');
+        const formData = new FormData();
+        formData.append('document', state.file);
+        formData.append('document_hash', state.hash);
+        const notarizeRes = await (await fetch(`${CONFIG.BACKEND_URL}/notarize`, { method: 'POST', body: formData })).json();
+        if (!notarizeRes.success) throw new Error(notarizeRes.details);
+        dom['results-section'].innerHTML = `<strong>Success!</strong><p>TxID: <a href="${notarizeRes.explorerUrl}" target="_blank">${notarizeRes.vechainTx.substring(0,20)}...</a></p>`;
+        show('results');
+    } catch (err) { setStatus(err.message, 'error'); }
+    finally { dom['notarize-btn'].disabled = false; }
+}
+</script>
+</body>
+</html>
